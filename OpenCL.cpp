@@ -4,57 +4,59 @@
 
 using namespace std;
 
-void addVectors_OpenCL(vector<int>& a, vector<int>& b, vector<int>& c, int n) {
-    // Get available platforms
+void addVectorsUsingOpenCL(vector<int>& inputVector1, vector<int>& inputVector2, vector<int>& outputVector, int vectorSize) {
+    // Obtain available platform
     cl_platform_id platform;
     clGetPlatformIDs(1, &platform, NULL);
 
-    // Get available devices
+    // Obtain available GPU device
     cl_device_id device;
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
 
-    // Create a context and command queue for the device
+    // Create a context and command queue for the GPU device
     cl_context context = clCreateContext(NULL, 1, &device, NULL, NULL, NULL);
     cl_command_queue queue = clCreateCommandQueue(context, device, 0, NULL);
 
-    // Create buffers for the input and output vectors
-    cl_mem bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * n, a.data(), NULL);
-    cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * n, b.data(), NULL);
-    cl_mem bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * n, NULL, NULL);
+    // Create OpenCL buffers for input and output vectors
+    cl_mem bufferInputVector1 = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * vectorSize, inputVector1.data(), NULL);
+    cl_mem bufferInputVector2 = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(int) * vectorSize, inputVector2.data(), NULL);
+    cl_mem bufferOutputVector = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * vectorSize, NULL, NULL);
 
-    // Create a program from the kernel source code
+    // Define kernel source code for vector addition
     const char* kernelSourceCode =
-        "_kernel void vector_add_ocl(_global const int* a, __global const int* b, __global int* c, int n) {\n"
-        "   int i = get_global_id(0);\n"
-        "   if (i < n) {\n"
-        "       c[i] = a[i] + b[i];\n"
+        "_kernel void vectorAddition(_global const int* input1, __global const int* input2, __global int* output, int size) {\n"
+        "   int index = get_global_id(0);\n"
+        "   if (index < size) {\n"
+        "       output[index] = input1[index] + input2[index];\n"
         "   }\n"
         "}\n";
+
+    // Create an OpenCL program from the kernel source code
     cl_program program = clCreateProgramWithSource(context, 1, &kernelSourceCode, NULL, NULL);
 
-    // Build the program
+    // Build the OpenCL program
     clBuildProgram(program, 1, &device, NULL, NULL, NULL);
 
     // Create a kernel object from the program
-    cl_kernel kernel = clCreateKernel(program, "vector_add_ocl", NULL);
+    cl_kernel kernel = clCreateKernel(program, "vectorAddition", NULL);
 
-    // Set the kernel arguments
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferA);
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferB);
-    clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferC);
-    clSetKernelArg(kernel, 3, sizeof(int), &n);
+    // Set kernel arguments
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferInputVector1);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferInputVector2);
+    clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferOutputVector);
+    clSetKernelArg(kernel, 3, sizeof(int), &vectorSize);
 
-    // Execute the kernel on the device
-    size_t globalSize = n;
+    // Execute the kernel on the GPU device
+    size_t globalSize = vectorSize;
     clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, NULL, 0, NULL, NULL);
 
     // Read the result back into the output vector
-    clEnqueueReadBuffer(queue, bufferC, CL_TRUE, 0, sizeof(int) * n, c.data(), 0, NULL, NULL);
+    clEnqueueReadBuffer(queue, bufferOutputVector, CL_TRUE, 0, sizeof(int) * vectorSize, outputVector.data(), 0, NULL, NULL);
 
     // Release OpenCL resources
-    clReleaseMemObject(bufferA);
-    clReleaseMemObject(bufferB);
-    clReleaseMemObject(bufferC);
+    clReleaseMemObject(bufferInputVector1);
+    clReleaseMemObject(bufferInputVector2);
+    clReleaseMemObject(bufferOutputVector);
     clReleaseKernel(kernel);
     clReleaseProgram(program);
     clReleaseCommandQueue(queue);
@@ -67,26 +69,26 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    int n = atoi(argv[1]); // Vector size
+    int vectorSize = atoi(argv[1]); // Size of input vectors
 
     // Create input vectors
-    vector<int> a(n);
-    vector<int> b(n);
-    vector<int> c(n);
+    vector<int> inputVector1(vectorSize);
+    vector<int> inputVector2(vectorSize);
+    vector<int> outputVector(vectorSize);
 
     // Initialize input vectors
-    for (int i = 0; i < n; ++i) {
-        a[i] = i + 1;
-        b[i] = n - i;
+    for (int i = 0; i < vectorSize; ++i) {
+        inputVector1[i] = i + 1;
+        inputVector2[i] = vectorSize - i;
     }
 
     // Perform vector addition using OpenCL
-    addVectors_OpenCL(a, b, c, n);
+    addVectorsUsingOpenCL(inputVector1, inputVector2, outputVector, vectorSize);
 
     // Print the result
     cout << "Result of vector addition:" << endl;
-    for (int i = 0; i < n; ++i) {
-        cout << c[i] << " ";
+    for (int i = 0; i < vectorSize; ++i) {
+        cout << outputVector[i] << " ";
     }
     cout << endl;
 
