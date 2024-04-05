@@ -3,44 +3,57 @@
 #include <CL/cl.h>
 #include <chrono>
 
+// Define whether to print vector elements or not
 #define PRINT 1
 
+// Default vector size
 int SZ = 100000000;
 
+// Pointers for input vectors and output vector
 int *v1, *v2, *v_out;
 
+// OpenCL memory buffers
 cl_mem bufV1, bufV2, bufV_out;
 
+// OpenCL device ID, context, program, kernel, and command queue
 cl_device_id device_id;
-
 cl_context context;
-
 cl_program program;
-
 cl_kernel kernel;
-
 cl_command_queue queue;
 
+// OpenCL event object for synchronization
 cl_event event = NULL;
 
+// Error variable for OpenCL functions
 int err;
 
+// Function to create OpenCL device
 cl_device_id create_device();
 
+// Function to setup OpenCL device, context, queue, and kernel
 void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname);
 
+// Function to build OpenCL program from source file
 cl_program build_program(cl_context ctx, cl_device_id dev, const char *filename);
 
+// Function to setup OpenCL memory buffers
 void setup_kernel_memory();
 
+// Function to copy kernel arguments
 void copy_kernel_args();
 
+// Function to free OpenCL memory objects and resources
 void free_memory();
+
+// Function to initialize vector with random values
 void init(int *&A, int size);
 
+// Function to print vector elements
 void print(int *A, int size);
 
 int main(int argc, char **argv) {
+    // Adjust vector size if provided as command-line argument
     if (argc > 1) {
         SZ = atoi(argv[1]);
     }
@@ -50,36 +63,47 @@ int main(int argc, char **argv) {
     init(v2, SZ);
     init(v_out, SZ); 
 
+    // Global work size for kernel execution
     size_t global[1] = {(size_t)SZ};
 
+    // Print input vectors if required
     print(v1, SZ);
     print(v2, SZ);
    
     // Setup OpenCL device, context, queue, and kernel
     setup_openCL_device_context_queue_kernel((char *)"./vector_ops_ocl.cl", (char *)"vector_add_ocl");
+    
     // Setup memory buffers
     setup_kernel_memory();
+    
     // Copy kernel arguments
     copy_kernel_args();
     
     // Start timer
     auto start = std::chrono::high_resolution_clock::now();
+    
     // Enqueue kernel execution
     clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global, NULL, 0, NULL, &event);
     clWaitForEvents(1, &event);
-    // Read output buffer
-    clEnqueueReadBuffer(queue, bufV_out, CL_TRUE, 0, SZ * sizeof(int), &v_out[0], 0, NULL, NULL);
+    
     // Stop timer
     auto stop = std::chrono::high_resolution_clock::now();
+    
+    // Read output buffer
+    clEnqueueReadBuffer(queue, bufV_out, CL_TRUE, 0, SZ * sizeof(int), &v_out[0], 0, NULL, NULL);
+    
     // Calculate elapsed time
     std::chrono::duration<double, std::milli> elapsed_time = stop - start;
 
-    // Print output
+    // Print output vector
     print(v_out, SZ);
+    
     // Print kernel execution time
     printf("Kernel Execution Time: %f ms\n", elapsed_time.count());
+    
     // Free memory
     free_memory();
+    return 0;
 }
 
 // Initialize vector with random values
